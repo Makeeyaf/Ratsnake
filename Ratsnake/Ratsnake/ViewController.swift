@@ -18,6 +18,7 @@ final class ViewController: UIViewController {
     lazy var playerView: AVPlayerView = {
         let view = AVPlayerView()
         view.backgroundColor = .black
+        view.translatesAutoresizingMaskIntoConstraints = false
         return view
     }()
 
@@ -94,9 +95,20 @@ final class ViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        setViews()
+        setConstraints()
+
         request()
+    }
+
+    private func setViews() {
         view.addSubview(playerView)
-        playerView.translatesAutoresizingMaskIntoConstraints = false
+        playerView.addSubview(controlButton)
+        playerView.addSubview(seekBarView)
+        playerView.addSubview(timeLabelStack)
+    }
+
+    private func setConstraints() {
         NSLayoutConstraint.activate([
             playerView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
             playerView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
@@ -106,7 +118,6 @@ final class ViewController: UIViewController {
             playerView.heightAnchor.constraint(equalTo: playerView.widthAnchor, multiplier: 9/16),
         ])
 
-        playerView.addSubview(controlButton)
         NSLayoutConstraint.activate([
             controlButton.centerXAnchor.constraint(equalTo: playerView.centerXAnchor),
             controlButton.centerYAnchor.constraint(equalTo: playerView.centerYAnchor),
@@ -114,14 +125,12 @@ final class ViewController: UIViewController {
             controlButton.heightAnchor.constraint(equalTo: controlButton.widthAnchor),
         ])
 
-        playerView.addSubview(seekBarView)
         NSLayoutConstraint.activate([
             seekBarView.leadingAnchor.constraint(equalTo: playerView.leadingAnchor, constant: 15),
             seekBarView.trailingAnchor.constraint(equalTo: playerView.trailingAnchor, constant: -15),
             seekBarView.bottomAnchor.constraint(equalTo: playerView.bottomAnchor, constant: -15),
         ])
 
-        playerView.addSubview(timeLabelStack)
         NSLayoutConstraint.activate([
             timeLabelStack.leadingAnchor.constraint(equalTo: seekBarView.leadingAnchor),
             timeLabelStack.bottomAnchor.constraint(equalTo: seekBarView.topAnchor, constant: -4),
