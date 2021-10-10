@@ -80,6 +80,8 @@ final class ViewController: UIViewController {
         return view
     }()
 
+    private var isSeekBarEditing: Bool = false
+
     private var player: AVPlayer?
 
     private let timeFormatter: DateComponentsFormatter = {
@@ -141,11 +143,23 @@ final class ViewController: UIViewController {
     }
 
     @objc private func seekBarDidPanned(_ sender: UIPanGestureRecognizer) {
+        guard let player = player, let duration = player.currentItem?.duration else { return }
+
         let x: CGFloat = min(max(0, sender.location(in: seekBarView).x), seekBarView.bounds.width)
         let progress: CGFloat = x / seekBarView.bounds.width
 
-        pause()
         seekBarView.progress = progress
+
+        switch sender.state {
+        case .began:
+            isSeekBarEditing = true
+
+        case .ended:
+            player.seek(to: CMTime(seconds: duration.seconds * progress, preferredTimescale: duration.timescale))
+            isSeekBarEditing = false
+        default:
+            return
+        }
     }
 
     private func request() {
@@ -195,7 +209,9 @@ final class ViewController: UIViewController {
                   let totalTime = player.currentItem?.duration.seconds
             else { return }
 
-            self?.seekBarView.progress = max(0, currentTime / totalTime)
+            if self?.isSeekBarEditing == false {
+                self?.seekBarView.progress = max(0, currentTime / totalTime)
+            }
 
             self?.currentTimeLabel.text = self?.timeFormatter.string(from: currentTime)
             self?.totalTimeLabel.text = "/" + (self?.timeFormatter.string(from: totalTime) ?? "")
