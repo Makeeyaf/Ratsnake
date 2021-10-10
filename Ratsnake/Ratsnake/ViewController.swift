@@ -67,6 +67,14 @@ final class ViewController: UIViewController {
         return view
     }()
 
+    lazy var seekBarView: SeekBarView = {
+        let view = SeekBarView()
+        view.thumbColor = .white
+        view.barColor = .gray
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
+
     private var player: AVPlayer?
 
     private let timeFormatter: DateComponentsFormatter = {
@@ -95,18 +103,25 @@ final class ViewController: UIViewController {
             playerView.heightAnchor.constraint(equalTo: playerView.widthAnchor, multiplier: 9/16),
         ])
 
-        playerView.addSubview(timeLabelStack)
-        NSLayoutConstraint.activate([
-            timeLabelStack.leadingAnchor.constraint(equalTo: playerView.leadingAnchor, constant: 15),
-            timeLabelStack.bottomAnchor.constraint(equalTo: playerView.bottomAnchor),
-        ])
-
         playerView.addSubview(controlButton)
         NSLayoutConstraint.activate([
             controlButton.centerXAnchor.constraint(equalTo: playerView.centerXAnchor),
             controlButton.centerYAnchor.constraint(equalTo: playerView.centerYAnchor),
             controlButton.widthAnchor.constraint(equalToConstant: 45),
             controlButton.heightAnchor.constraint(equalTo: controlButton.widthAnchor),
+        ])
+
+        playerView.addSubview(seekBarView)
+        NSLayoutConstraint.activate([
+            seekBarView.leadingAnchor.constraint(equalTo: playerView.leadingAnchor, constant: 15),
+            seekBarView.trailingAnchor.constraint(equalTo: playerView.trailingAnchor, constant: -15),
+            seekBarView.bottomAnchor.constraint(equalTo: playerView.bottomAnchor, constant: -15),
+        ])
+
+        playerView.addSubview(timeLabelStack)
+        NSLayoutConstraint.activate([
+            timeLabelStack.leadingAnchor.constraint(equalTo: seekBarView.leadingAnchor),
+            timeLabelStack.bottomAnchor.constraint(equalTo: seekBarView.topAnchor, constant: -4),
         ])
     }
 
@@ -149,25 +164,18 @@ final class ViewController: UIViewController {
 //            player.removeTimeObserver(timeObserverToken)
 //        }
 
-        let updateInterval = CMTime(seconds: 1, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        let updateInterval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserverToken = player.addPeriodicTimeObserver(forInterval: updateInterval, queue: .main) { [weak self] time in
             guard player.currentItem?.status == .readyToPlay else { return }
 
-            let currentTimeText: String? = {
-                guard let currentTime = player.currentItem?.currentTime().seconds else { return nil }
+            guard let currentTime = player.currentItem?.currentTime().seconds,
+                  let totalTime = player.currentItem?.duration.seconds
+            else { return }
 
-                return self?.timeFormatter.string(from: currentTime)
-            }()
+            self?.seekBarView.progress = max(0, currentTime / totalTime)
 
-            self?.currentTimeLabel.text = currentTimeText
-
-            let totalTimeText: String? = {
-                guard let totalTime = player.currentItem?.duration.seconds else { return nil }
-
-                return self?.timeFormatter.string(from: totalTime)
-            }()
-
-            self?.totalTimeLabel.text = "/" + (totalTimeText ?? "")
+            self?.currentTimeLabel.text = self?.timeFormatter.string(from: currentTime)
+            self?.totalTimeLabel.text = "/" + (self?.timeFormatter.string(from: totalTime) ?? "")
         }
     }
 
@@ -205,6 +213,104 @@ final class AVPlayerView : UIView {
 
     func videoFillMode() -> AVLayerVideoGravity {
         return playerLayer.videoGravity
+    }
+}
+
+extension ViewController {
+    final class SeekBarView: UIView {
+        private lazy var barView: UIView = {
+            let view = UIView()
+            view.translatesAutoresizingMaskIntoConstraints = false
+            return view
+        }()
+
+        private lazy var thumbView: UIView = {
+            let view = UIView()
+            view.translatesAutoresizingMaskIntoConstraints = false
+            view.layer.cornerRadius = 0.5 * thumbDiameter
+            return view
+        }()
+
+        var barColor: UIColor? {
+            get { barView.backgroundColor }
+            set { barView.backgroundColor = newValue }
+        }
+
+        var barThickness: CGFloat = 4 {
+            didSet {
+                barThicknessConstraints?.constant = barThickness
+            }
+        }
+
+        var thumbColor: UIColor? {
+            get { thumbView.backgroundColor }
+            set { thumbView.backgroundColor = newValue }
+        }
+
+        var thumbDiameter: CGFloat = 10 {
+            didSet {
+                thumbDiameterConstraints?.constant = thumbDiameter
+                thumbView.layer.cornerRadius = 0.5 * thumbDiameter
+            }
+        }
+
+        var progress: CGFloat {
+            get { _progress }
+            set {
+                switch newValue {
+                case ..<0:
+                    _progress = 0
+
+                case 1...:
+                    _progress = 1
+
+                default:
+                    _progress = newValue
+                }
+
+                thumbPositionConstraints?.constant = _progress * barView.bounds.width
+            }
+        }
+
+        private var _progress: CGFloat = 0
+
+        private var barThicknessConstraints: NSLayoutConstraint?
+        private var thumbDiameterConstraints: NSLayoutConstraint?
+        private var thumbPositionConstraints: NSLayoutConstraint?
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            setViews()
+        }
+
+        required init?(coder: NSCoder) {
+            super.init(coder: coder)
+            setViews()
+        }
+
+        private func setViews() {
+            addSubview(barView)
+            addSubview(thumbView)
+
+            barThicknessConstraints = barView.heightAnchor.constraint(equalToConstant: barThickness)
+            barThicknessConstraints?.isActive = true
+            NSLayoutConstraint.activate([
+                barView.leftAnchor.constraint(equalTo: leftAnchor),
+                barView.rightAnchor.constraint(equalTo: rightAnchor),
+                barView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            ])
+
+            thumbPositionConstraints = thumbView.leftAnchor.constraint(equalTo: barView.leftAnchor)
+            thumbPositionConstraints?.isActive = true
+            thumbDiameterConstraints = thumbView.widthAnchor.constraint(equalToConstant: thumbDiameter)
+            thumbDiameterConstraints?.isActive = true
+            NSLayoutConstraint.activate([
+                thumbView.topAnchor.constraint(equalTo: topAnchor),
+                thumbView.bottomAnchor.constraint(equalTo: bottomAnchor),
+                thumbView.centerYAnchor.constraint(equalTo: barView.centerYAnchor),
+                thumbView.heightAnchor.constraint(equalTo: thumbView.widthAnchor),
+            ])
+        }
     }
 }
 
