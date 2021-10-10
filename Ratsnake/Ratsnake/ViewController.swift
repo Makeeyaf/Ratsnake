@@ -71,6 +71,7 @@ final class ViewController: UIViewController {
         let view = SeekBarView()
         view.thumbColor = .white
         view.barColor = .gray
+        view.elapsedBarColor = .systemGray5
         view.translatesAutoresizingMaskIntoConstraints = false
         return view
     }()
@@ -224,12 +225,23 @@ extension ViewController {
             return view
         }()
 
+        private lazy var elapsedBarView: UIView = {
+            let view = UIView()
+            view.translatesAutoresizingMaskIntoConstraints = false
+            return view
+        }()
+
         private lazy var thumbView: UIView = {
             let view = UIView()
             view.translatesAutoresizingMaskIntoConstraints = false
             view.layer.cornerRadius = 0.5 * thumbDiameter
             return view
         }()
+
+        var elapsedBarColor: UIColor? {
+            get { elapsedBarView.backgroundColor }
+            set { elapsedBarView.backgroundColor = newValue }
+        }
 
         var barColor: UIColor? {
             get { barView.backgroundColor }
@@ -290,6 +302,7 @@ extension ViewController {
 
         private func setViews() {
             addSubview(barView)
+            addSubview(elapsedBarView)
             addSubview(thumbView)
 
             barThicknessConstraints = barView.heightAnchor.constraint(equalToConstant: barThickness)
@@ -309,6 +322,13 @@ extension ViewController {
                 thumbView.bottomAnchor.constraint(equalTo: bottomAnchor),
                 thumbView.centerYAnchor.constraint(equalTo: barView.centerYAnchor),
                 thumbView.heightAnchor.constraint(equalTo: thumbView.widthAnchor),
+            ])
+
+            NSLayoutConstraint.activate([
+                elapsedBarView.leftAnchor.constraint(equalTo: barView.leftAnchor),
+                elapsedBarView.centerYAnchor.constraint(equalTo: barView.centerYAnchor),
+                elapsedBarView.heightAnchor.constraint(equalTo: barView.heightAnchor),
+                elapsedBarView.rightAnchor.constraint(equalTo: thumbView.centerXAnchor),
             ])
         }
     }
