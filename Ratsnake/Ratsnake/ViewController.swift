@@ -74,6 +74,9 @@ final class ViewController: UIViewController {
         view.barColor = .gray
         view.elapsedBarColor = .systemGray5
         view.translatesAutoresizingMaskIntoConstraints = false
+
+        let panGestureRecognizer = UIPanGestureRecognizer(target: self, action: #selector(seekBarDidPanned(_:)))
+        view.addGestureRecognizer(panGestureRecognizer)
         return view
     }()
 
@@ -135,6 +138,14 @@ final class ViewController: UIViewController {
             timeLabelStack.leadingAnchor.constraint(equalTo: seekBarView.leadingAnchor),
             timeLabelStack.bottomAnchor.constraint(equalTo: seekBarView.topAnchor, constant: -4),
         ])
+    }
+
+    @objc private func seekBarDidPanned(_ sender: UIPanGestureRecognizer) {
+        let x: CGFloat = min(max(0, sender.location(in: seekBarView).x), seekBarView.bounds.width)
+        let progress: CGFloat = x / seekBarView.bounds.width
+
+        pause()
+        seekBarView.progress = progress
     }
 
     private func request() {
