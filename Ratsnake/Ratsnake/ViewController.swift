@@ -19,6 +19,15 @@ final class ViewController: UIViewController {
         let view = AVPlayerView()
         view.backgroundColor = .black
         view.translatesAutoresizingMaskIntoConstraints = false
+
+        let leftSwipeGestureRecognizer = UISwipeGestureRecognizer(target: self, action: #selector(playerViewDidSwiped(_:)))
+        leftSwipeGestureRecognizer.direction = .left
+        view.addGestureRecognizer(leftSwipeGestureRecognizer)
+
+        let rightSwipeGestureRecognizer = UISwipeGestureRecognizer(target: self, action: #selector(playerViewDidSwiped(_:)))
+        rightSwipeGestureRecognizer.direction = .right
+        view.addGestureRecognizer(rightSwipeGestureRecognizer)
+
         return view
     }()
 
@@ -140,6 +149,17 @@ final class ViewController: UIViewController {
             timeLabelStack.leadingAnchor.constraint(equalTo: seekBarView.leadingAnchor),
             timeLabelStack.bottomAnchor.constraint(equalTo: seekBarView.topAnchor, constant: -4),
         ])
+    }
+
+    @objc private func playerViewDidSwiped(_ sender: UISwipeGestureRecognizer) {
+        guard let player = player,
+              let current = player.currentItem?.currentTime().seconds,
+              let duration = player.currentItem?.duration
+        else { return }
+
+        let delta: Double = (sender.direction == .left) ? -5 : 5
+
+        player.seek(to: CMTime(seconds: min(max(current + delta, 0), duration.seconds), preferredTimescale: duration.timescale))
     }
 
     @objc private func seekBarDidPanned(_ sender: UIPanGestureRecognizer) {
