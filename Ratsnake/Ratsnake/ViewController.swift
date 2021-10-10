@@ -13,6 +13,7 @@ final class ViewController: UIViewController {
     var url: String = ""
     var sampleURL: String = ""
     var totalLength: Float = 0
+    var timeObserverToken: Any?
 
     lazy var playButton: UIButton = {
         let view = UIButton(type: .system)
@@ -24,6 +25,35 @@ final class ViewController: UIViewController {
 
     lazy var playerView = AVPlayerView()
 
+    lazy var currentTimeLabel: UILabel = {
+        let view = UILabel()
+        view.textColor = .white
+        view.font = .monospacedSystemFont(ofSize: 16, weight: .regular)
+        return view
+    }()
+
+    lazy var totalTimeLabel: UILabel = {
+        let view = UILabel()
+        view.textColor = .white
+        view.font = .monospacedSystemFont(ofSize: 16, weight: .regular)
+        return view
+    }()
+
+    lazy var timeLabelStack: UIStackView = {
+        let view = UIStackView(arrangedSubviews: [currentTimeLabel, totalTimeLabel])
+        view.axis = .horizontal
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
+
+    private let timeFormatter: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.minute, .second]
+        formatter.unitsStyle = .positional
+        formatter.zeroFormattingBehavior = .pad
+        return formatter
+    }()
+
     override func viewDidLoad() {
         super.viewDidLoad()
         request()
@@ -32,14 +62,20 @@ final class ViewController: UIViewController {
         NSLayoutConstraint.activate([
             playerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             playerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            playerView.topAnchor.constraint(equalTo: view.topAnchor),
-            playerView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            playerView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            playerView.heightAnchor.constraint(equalTo: playerView.widthAnchor, multiplier: 9/16),
         ])
 
         view.addSubview(playButton)
         NSLayoutConstraint.activate([
             playButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             playButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
+        ])
+
+        playerView.addSubview(timeLabelStack)
+        NSLayoutConstraint.activate([
+            timeLabelStack.leadingAnchor.constraint(equalTo: playerView.leadingAnchor, constant: 15),
+            timeLabelStack.bottomAnchor.constraint(equalTo: playerView.bottomAnchor),
         ])
     }
 
@@ -58,6 +94,31 @@ final class ViewController: UIViewController {
         let player = AVPlayer(playerItem: playItem)
         playerView.setPlayer(player: player)
         player.play()
+
+//        if let timeObserverToken = timeObserverToken {
+//            player.removeTimeObserver(timeObserverToken)
+//        }
+
+        let updateInterval = CMTime(seconds: 1, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        timeObserverToken = player.addPeriodicTimeObserver(forInterval: updateInterval, queue: .main) { [weak self] time in
+            guard player.currentItem?.status == .readyToPlay else { return }
+
+            let currentTimeText: String? = {
+                guard let currentTime = player.currentItem?.currentTime().seconds else { return nil }
+
+                return self?.timeFormatter.string(from: currentTime)
+            }()
+
+            self?.currentTimeLabel.text = currentTimeText
+
+            let totalTimeText: String? = {
+                guard let totalTime = player.currentItem?.duration.seconds else { return nil }
+
+                return self?.timeFormatter.string(from: totalTime)
+            }()
+
+            self?.totalTimeLabel.text = "/" + (totalTimeText ?? "")
+        }
     }
 }
 
