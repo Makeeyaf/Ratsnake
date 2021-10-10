@@ -15,15 +15,11 @@ final class ViewController: UIViewController {
     var totalLength: Float = 0
     var timeObserverToken: Any?
 
-    lazy var playButton: UIButton = {
-        let view = UIButton(type: .system)
-        view.setTitle("Play", for: .normal)
-        view.addTarget(self, action: #selector(play), for: .touchUpInside)
-        view.translatesAutoresizingMaskIntoConstraints = false
+    lazy var playerView: AVPlayerView = {
+        let view = AVPlayerView()
+        view.backgroundColor = .black
         return view
     }()
-
-    lazy var playerView = AVPlayerView()
 
     lazy var currentTimeLabel: UILabel = {
         let view = UILabel()
@@ -46,6 +42,33 @@ final class ViewController: UIViewController {
         return view
     }()
 
+    lazy var controlButton: UIButton = {
+        let view = UIButton(type: .custom, primaryAction: UIAction { [weak self] action in
+            switch self?.player?.timeControlStatus {
+            case .paused:
+                self?.resume()
+
+            case .playing:
+                self?.pause()
+
+            case .none:
+                self?.play()
+
+            default:
+                break
+            }
+        })
+        view.setImage(UIImage(systemName: "play.fill"), for: .normal)
+        view.tintColor = .white
+        view.contentHorizontalAlignment = .fill
+        view.contentVerticalAlignment = .fill
+        view.imageView?.contentMode = .scaleAspectFit
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
+
+    private var player: AVPlayer?
+
     private let timeFormatter: DateComponentsFormatter = {
         let formatter = DateComponentsFormatter()
         formatter.allowedUnits = [.minute, .second]
@@ -53,6 +76,12 @@ final class ViewController: UIViewController {
         formatter.zeroFormattingBehavior = .pad
         return formatter
     }()
+
+    private var playerStatusObservation: NSKeyValueObservation?
+
+    deinit {
+        playerStatusObservation?.invalidate()
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -66,16 +95,18 @@ final class ViewController: UIViewController {
             playerView.heightAnchor.constraint(equalTo: playerView.widthAnchor, multiplier: 9/16),
         ])
 
-        view.addSubview(playButton)
-        NSLayoutConstraint.activate([
-            playButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            playButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
-        ])
-
         playerView.addSubview(timeLabelStack)
         NSLayoutConstraint.activate([
             timeLabelStack.leadingAnchor.constraint(equalTo: playerView.leadingAnchor, constant: 15),
             timeLabelStack.bottomAnchor.constraint(equalTo: playerView.bottomAnchor),
+        ])
+
+        playerView.addSubview(controlButton)
+        NSLayoutConstraint.activate([
+            controlButton.centerXAnchor.constraint(equalTo: playerView.centerXAnchor),
+            controlButton.centerYAnchor.constraint(equalTo: playerView.centerYAnchor),
+            controlButton.widthAnchor.constraint(equalToConstant: 45),
+            controlButton.heightAnchor.constraint(equalTo: controlButton.widthAnchor),
         ])
     }
 
@@ -87,11 +118,30 @@ final class ViewController: UIViewController {
         }
     }
 
-    @objc private func play() {
+    private func play() {
         guard let url = URL(string: VideoLoader.Router.base + sampleURL) else { return }
 
         let playItem = AVPlayerItem(url: url)
-        let player = AVPlayer(playerItem: playItem)
+        player = AVPlayer(playerItem: playItem)
+
+        playerStatusObservation?.invalidate()
+        // KVO에서 NSKeyValueObservedChange<Value>가 제대로 새 값을 가져오지 못하는 버그
+        // <https://stackoverflow.com/q/51737607/12353435>
+        playerStatusObservation = player?.observe(\.timeControlStatus, options: [.new], changeHandler: { [weak self] player, _ in
+            switch player.timeControlStatus {
+            case .paused:
+                self?.controlButton.setImage(UIImage(systemName: "play.fill"), for: .normal)
+
+            case .playing:
+                self?.controlButton.setImage(UIImage(systemName: "pause.fill"), for: .normal)
+
+            default:
+                break
+            }
+        })
+
+        guard let player = player else { return }
+
         playerView.setPlayer(player: player)
         player.play()
 
@@ -119,6 +169,14 @@ final class ViewController: UIViewController {
 
             self?.totalTimeLabel.text = "/" + (totalTimeText ?? "")
         }
+    }
+
+    private func pause() {
+        player?.pause()
+    }
+
+    private func resume() {
+        player?.play()
     }
 }
 
