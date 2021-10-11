@@ -13,11 +13,8 @@ protocol PurchaseDelegate: AnyObject {
 }
 
 final class ViewController: UIViewController {
-    let loader = VideoLoader()
-    var url: String?
-    var sampleURL: String?
-    var totalLength: Double = 0
-    var timeObserverToken: Any?
+
+    // MARK: - Views
 
     lazy var playerView: AVPlayerView = {
         let view = AVPlayerView()
@@ -113,6 +110,25 @@ final class ViewController: UIViewController {
         return view
     }()
 
+    // MARK: - Properties
+
+    private let loader = VideoLoader()
+    private let timeFormatter: DateComponentsFormatter = {
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = [.minute, .second]
+        formatter.unitsStyle = .positional
+        formatter.zeroFormattingBehavior = .pad
+        return formatter
+    }()
+
+    private var player: AVPlayer?
+    private var playerStatusObservation: NSKeyValueObservation?
+    private var playerItemDidPlayToEndTimeObserver: NSObjectProtocol?
+    private var hideOverlayWorkItem: DispatchWorkItem?
+    private var url: String?
+    private var sampleURL: String?
+    private var totalLength: Double = 0
+    private var timeObserverToken: Any?
     private var isSeekBarEditing: Bool = false
     private var isPurchased: Bool = false {
         didSet {
@@ -134,19 +150,7 @@ final class ViewController: UIViewController {
         }
     }
 
-    private var player: AVPlayer?
-
-    private let timeFormatter: DateComponentsFormatter = {
-        let formatter = DateComponentsFormatter()
-        formatter.allowedUnits = [.minute, .second]
-        formatter.unitsStyle = .positional
-        formatter.zeroFormattingBehavior = .pad
-        return formatter
-    }()
-
-    private var playerStatusObservation: NSKeyValueObservation?
-    private var playerItemDidPlayToEndTimeObserver: NSObjectProtocol?
-    private var hideOverlayWorkItem: DispatchWorkItem?
+    // MARK: - Lifecyles
 
     deinit {
         playerStatusObservation?.invalidate()
@@ -182,6 +186,8 @@ final class ViewController: UIViewController {
             }
         }
     }
+
+    // MARK: - methods
 
     private func setViews() {
         view.addSubview(playerView)
@@ -233,58 +239,6 @@ final class ViewController: UIViewController {
             purchaseView.topAnchor.constraint(equalTo: playerView.topAnchor),
             purchaseView.bottomAnchor.constraint(equalTo: playerView.bottomAnchor),
         ])
-    }
-
-    @objc private func overlayDidTapped(_ sender: UITapGestureRecognizer) {
-        guard let status = player?.timeControlStatus, status != .paused else { return }
-
-        if overlayContainer.isHidden {
-            showOverlay()
-            delayHideOverlayWork(isRenewable: false)
-        } else {
-            hideOverlay()
-            cancelHideOverlayWork()
-        }
-    }
-
-    @objc private func playerViewDidSwiped(_ sender: UISwipeGestureRecognizer) {
-        guard let player = player,
-              let current = player.currentItem?.currentTime().seconds,
-              let duration = player.currentItem?.duration
-        else { return }
-
-        let delta: Double = (sender.direction == .left) ? -5 : 5
-
-        player.seek(to: CMTime(seconds: min(max(current + delta, 0), duration.seconds), preferredTimescale: duration.timescale))
-
-        if overlayContainer.isHidden {
-            showOverlay()
-        }
-        delayHideOverlayWork(isRenewable: false)
-    }
-
-    @objc private func seekBarDidPanned(_ sender: UIPanGestureRecognizer) {
-        guard let player = player, let duration = player.currentItem?.duration else { return }
-
-        let x: CGFloat = min(max(0, sender.location(in: seekBarView).x), seekBarView.bounds.width)
-        let progress: CGFloat = x / seekBarView.bounds.width
-
-        seekBarView.progress = progress
-
-        switch sender.state {
-        case .began:
-            isSeekBarEditing = true
-            cancelHideOverlayWork()
-
-        case .ended:
-            let seekTime = floor(min(duration.seconds, totalLength * progress))
-            player.seek(to: CMTime(seconds: seekTime, preferredTimescale: duration.timescale))
-            isSeekBarEditing = false
-            delayHideOverlayWork(isRenewable: false)
-
-        default:
-            return
-        }
     }
 
     private func cancelHideOverlayWork() {
@@ -393,7 +347,63 @@ final class ViewController: UIViewController {
     private func resume() {
         player?.play()
     }
+
+    // MARK: - Actions
+
+    @objc private func overlayDidTapped(_ sender: UITapGestureRecognizer) {
+        guard let status = player?.timeControlStatus, status != .paused else { return }
+
+        if overlayContainer.isHidden {
+            showOverlay()
+            delayHideOverlayWork(isRenewable: false)
+        } else {
+            hideOverlay()
+            cancelHideOverlayWork()
+        }
+    }
+
+    @objc private func playerViewDidSwiped(_ sender: UISwipeGestureRecognizer) {
+        guard let player = player,
+              let current = player.currentItem?.currentTime().seconds,
+              let duration = player.currentItem?.duration
+        else { return }
+
+        let delta: Double = (sender.direction == .left) ? -5 : 5
+
+        player.seek(to: CMTime(seconds: min(max(current + delta, 0), duration.seconds), preferredTimescale: duration.timescale))
+
+        if overlayContainer.isHidden {
+            showOverlay()
+        }
+        delayHideOverlayWork(isRenewable: false)
+    }
+
+    @objc private func seekBarDidPanned(_ sender: UIPanGestureRecognizer) {
+        guard let player = player, let duration = player.currentItem?.duration else { return }
+
+        let x: CGFloat = min(max(0, sender.location(in: seekBarView).x), seekBarView.bounds.width)
+        let progress: CGFloat = x / seekBarView.bounds.width
+
+        seekBarView.progress = progress
+
+        switch sender.state {
+        case .began:
+            isSeekBarEditing = true
+            cancelHideOverlayWork()
+
+        case .ended:
+            let seekTime = floor(min(duration.seconds, totalLength * progress))
+            player.seek(to: CMTime(seconds: seekTime, preferredTimescale: duration.timescale))
+            isSeekBarEditing = false
+            delayHideOverlayWork(isRenewable: false)
+
+        default:
+            return
+        }
+    }
 }
+
+// MARK: - PurchaseDelegate
 
 extension ViewController: PurchaseDelegate {
     func didPurchased() {
@@ -410,35 +420,37 @@ extension ViewController: PurchaseDelegate {
     }
 }
 
-final class AVPlayerView : UIView {
-    override public class var layerClass: Swift.AnyClass {
-        get {
-            return AVPlayerLayer.self
+// MARK: - Nested Classes
+extension ViewController {
+
+    final class AVPlayerView : UIView {
+        override public class var layerClass: Swift.AnyClass {
+            get {
+                return AVPlayerLayer.self
+            }
+        }
+
+        private var playerLayer: AVPlayerLayer {
+            return self.layer as! AVPlayerLayer
+        }
+
+        func player() -> AVPlayer {
+            return playerLayer.player!
+        }
+
+        func setPlayer(player: AVPlayer) {
+            playerLayer.player = player
+        }
+
+        func setVideoFillMode(mode: AVLayerVideoGravity) {
+            playerLayer.videoGravity = mode
+        }
+
+        func videoFillMode() -> AVLayerVideoGravity {
+            return playerLayer.videoGravity
         }
     }
 
-    private var playerLayer: AVPlayerLayer {
-        return self.layer as! AVPlayerLayer
-    }
-
-    func player() -> AVPlayer {
-        return playerLayer.player!
-    }
-
-    func setPlayer(player: AVPlayer) {
-        playerLayer.player = player
-    }
-
-    func setVideoFillMode(mode: AVLayerVideoGravity) {
-        playerLayer.videoGravity = mode
-    }
-
-    func videoFillMode() -> AVLayerVideoGravity {
-        return playerLayer.videoGravity
-    }
-}
-
-extension ViewController {
     final class SeekBarView: UIView {
         private lazy var barView: UIView = {
             let view = UIView()
