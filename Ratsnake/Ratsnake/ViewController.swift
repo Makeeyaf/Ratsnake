@@ -28,6 +28,10 @@ final class ViewController: UIViewController {
         rightSwipeGestureRecognizer.direction = .right
         view.addGestureRecognizer(rightSwipeGestureRecognizer)
 
+        let tapGestureRecognizer = UITapGestureRecognizer(target: self, action: #selector(overlayDidTapped(_:)))
+        tapGestureRecognizer.requiresExclusiveTouchType = true
+        view.addGestureRecognizer(tapGestureRecognizer)
+
         return view
     }()
 
@@ -108,6 +112,7 @@ final class ViewController: UIViewController {
     }()
 
     private var playerStatusObservation: NSKeyValueObservation?
+    private var hideOverlayWorkItem: DispatchWorkItem?
 
     deinit {
         playerStatusObservation?.invalidate()
@@ -165,6 +170,18 @@ final class ViewController: UIViewController {
         ])
     }
 
+    @objc private func overlayDidTapped(_ sender: UITapGestureRecognizer) {
+        guard let status = player?.timeControlStatus, status != .paused else { return }
+
+        if overlayContainer.isHidden {
+            showOverlay()
+            delayHideOverlayWork(isRenewable: false)
+        } else {
+            hideOverlay()
+            cancelHideOverlayWork()
+        }
+    }
+
     @objc private func playerViewDidSwiped(_ sender: UISwipeGestureRecognizer) {
         guard let player = player,
               let current = player.currentItem?.currentTime().seconds,
@@ -174,6 +191,11 @@ final class ViewController: UIViewController {
         let delta: Double = (sender.direction == .left) ? -5 : 5
 
         player.seek(to: CMTime(seconds: min(max(current + delta, 0), duration.seconds), preferredTimescale: duration.timescale))
+
+        if overlayContainer.isHidden {
+            showOverlay()
+        }
+        delayHideOverlayWork(isRenewable: false)
     }
 
     @objc private func seekBarDidPanned(_ sender: UIPanGestureRecognizer) {
@@ -187,12 +209,58 @@ final class ViewController: UIViewController {
         switch sender.state {
         case .began:
             isSeekBarEditing = true
+            cancelHideOverlayWork()
 
         case .ended:
             player.seek(to: CMTime(seconds: duration.seconds * progress, preferredTimescale: duration.timescale))
             isSeekBarEditing = false
+            delayHideOverlayWork(isRenewable: false)
+
         default:
             return
+        }
+    }
+
+    private func cancelHideOverlayWork() {
+        guard hideOverlayWorkItem?.isCancelled == false else { return }
+
+        hideOverlayWorkItem?.cancel()
+    }
+
+    private func delayHideOverlayWork(isRenewable: Bool) {
+        if isRenewable {
+            cancelHideOverlayWork()
+        } else {
+            guard hideOverlayWorkItem?.isCancelled == false else { return }
+
+            hideOverlayWorkItem?.cancel()
+        }
+
+        hideOverlayWorkItem = DispatchWorkItem {
+            guard !self.overlayContainer.isHidden else { return }
+
+            self.hideOverlay()
+        }
+
+        guard let hideOverlayWorkItem = hideOverlayWorkItem else { return }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(3), execute: hideOverlayWorkItem)
+    }
+
+    private func showOverlay() {
+        overlayContainer.alpha = 0
+        overlayContainer.isHidden = false
+
+        UIView.animate(withDuration: 0.25) {
+            self.overlayContainer.alpha = 1
+        }
+    }
+
+    private func hideOverlay() {
+        UIView.animate(withDuration: 0.25) {
+            self.overlayContainer.alpha = 0
+        } completion: { _ in
+            self.overlayContainer.isHidden = true
         }
     }
 
@@ -217,9 +285,14 @@ final class ViewController: UIViewController {
             switch player.timeControlStatus {
             case .paused:
                 self?.controlButton.setImage(UIImage(systemName: "play.fill"), for: .normal)
+                self?.cancelHideOverlayWork()
+                if self?.overlayContainer.isHidden == true {
+                    self?.showOverlay()
+                }
 
             case .playing:
                 self?.controlButton.setImage(UIImage(systemName: "pause.fill"), for: .normal)
+                self?.delayHideOverlayWork(isRenewable: true)
 
             default:
                 break
