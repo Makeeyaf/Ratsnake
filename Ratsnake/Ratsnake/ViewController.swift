@@ -16,7 +16,7 @@ final class ViewController: UIViewController {
     let loader = VideoLoader()
     var url: String?
     var sampleURL: String?
-    var totalLength: Float = 0
+    var totalLength: Double = 0
     var timeObserverToken: Any?
 
     lazy var playerView: AVPlayerView = {
@@ -250,7 +250,8 @@ final class ViewController: UIViewController {
             cancelHideOverlayWork()
 
         case .ended:
-            player.seek(to: CMTime(seconds: duration.seconds * progress, preferredTimescale: duration.timescale))
+            let seekTime = floor(min(duration.seconds, totalLength * progress))
+            player.seek(to: CMTime(seconds: seekTime, preferredTimescale: duration.timescale))
             isSeekBarEditing = false
             delayHideOverlayWork(isRenewable: false)
 
@@ -340,24 +341,21 @@ final class ViewController: UIViewController {
         playerView.setPlayer(player: player)
         player.play()
 
-//        if let timeObserverToken = timeObserverToken {
-//            player.removeTimeObserver(timeObserverToken)
-//        }
+        totalTimeLabel.text = "/" + (timeFormatter.string(from: totalLength) ?? "")
 
         let updateInterval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserverToken = player.addPeriodicTimeObserver(forInterval: updateInterval, queue: .main) { [weak self] time in
             guard player.currentItem?.status == .readyToPlay else { return }
 
             guard let currentTime = player.currentItem?.currentTime().seconds,
-                  let totalTime = player.currentItem?.duration.seconds
+                  let totalLength = self?.totalLength
             else { return }
 
             if self?.isSeekBarEditing == false {
-                self?.seekBarView.progress = max(0, currentTime / totalTime)
+                self?.seekBarView.progress = max(0, currentTime / totalLength)
             }
 
             self?.currentTimeLabel.text = self?.timeFormatter.string(from: currentTime)
-            self?.totalTimeLabel.text = "/" + (self?.timeFormatter.string(from: totalTime) ?? "")
         }
     }
 
@@ -631,7 +629,7 @@ struct VideoLoader {
 struct VideoResponse: Codable {
     let url: String
     let sampleUrl: String
-    let totalLength: Float
+    let totalLength: Double
 }
 
 enum VideoError: Error {
