@@ -421,6 +421,7 @@ extension ViewController: PurchaseDelegate {
 }
 
 // MARK: - Nested Classes
+
 extension ViewController {
 
     final class AVPlayerView : UIView {
@@ -627,24 +628,6 @@ extension ViewController {
                 purchaseButton.centerXAnchor.constraint(equalTo: centerXAnchor),
                 purchaseButton.centerYAnchor.constraint(equalTo: centerYAnchor),
             ])
-        }
-    }
-}
-
-extension AVPlayer.TimeControlStatus {
-    var description: String {
-        switch self {
-        case .playing:
-            return "playing"
-
-        case .waitingToPlayAtSpecifiedRate:
-            return "waitingToPlayAtSpecifiedRate"
-
-        case .paused:
-            return "paused"
-
-        @unknown default:
-            return "unknown default"
         }
     }
 }
