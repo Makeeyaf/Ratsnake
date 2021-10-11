@@ -116,7 +116,21 @@ final class ViewController: UIViewController {
     private var isSeekBarEditing: Bool = false
     private var isPurchased: Bool = false {
         didSet {
-            purchaseView.isHidden = isPurchased
+            if isPurchased {
+                UIView.animate(withDuration: 0.3) {
+                    self.purchaseView.alpha = 0
+                } completion: { _ in
+                    self.purchaseView.isHidden = true
+                }
+            } else {
+                purchaseView.alpha = 0
+                purchaseView.isHidden = false
+
+                UIView.animate(withDuration: 0.3) {
+                    self.purchaseView.alpha = 1
+                }
+            }
+
         }
     }
 
@@ -152,7 +166,12 @@ final class ViewController: UIViewController {
         playerItemDidPlayToEndTimeObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: nil, queue: .main) { [weak self] _ in
             guard let self = self, !self.isPurchased, self.purchaseView.isHidden else { return }
 
+            self.purchaseView.alpha = 0
             self.purchaseView.isHidden = false
+
+            UIView.animate(withDuration: 0.3) {
+                self.purchaseView.alpha = 1
+            }
         }
     }
 
