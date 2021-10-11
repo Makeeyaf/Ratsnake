@@ -8,10 +8,14 @@
 import UIKit
 import AVKit
 
+protocol PurchaseDelegate: AnyObject {
+    func didPurchased()
+}
+
 final class ViewController: UIViewController {
     let loader = VideoLoader()
-    var url: String = ""
-    var sampleURL: String = ""
+    var url: String?
+    var sampleURL: String?
     var totalLength: Float = 0
     var timeObserverToken: Any?
 
@@ -56,6 +60,14 @@ final class ViewController: UIViewController {
         return view
     }()
 
+    lazy var purchaseView: PurchaseView = {
+        let view = PurchaseView()
+        view.delegate = self
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.isHidden = true
+        return view
+    }()
+
     lazy var controlButton: UIButton = {
         let view = UIButton(type: .custom, primaryAction: UIAction { [weak self] action in
             switch self?.player?.timeControlStatus {
@@ -66,7 +78,9 @@ final class ViewController: UIViewController {
                 self?.pause()
 
             case .none:
-                self?.play()
+                guard let sampleURL = self?.sampleURL, let url = URL(string: VideoLoader.Router.base + sampleURL) else { return }
+
+                self?.play(url: url)
 
             default:
                 break
@@ -100,6 +114,11 @@ final class ViewController: UIViewController {
     }()
 
     private var isSeekBarEditing: Bool = false
+    private var isPurchased: Bool = false {
+        didSet {
+            purchaseView.isHidden = isPurchased
+        }
+    }
 
     private var player: AVPlayer?
 
@@ -112,10 +131,15 @@ final class ViewController: UIViewController {
     }()
 
     private var playerStatusObservation: NSKeyValueObservation?
+    private var playerItemDidPlayToEndTimeObserver: NSObjectProtocol?
     private var hideOverlayWorkItem: DispatchWorkItem?
 
     deinit {
         playerStatusObservation?.invalidate()
+
+        if let playerItemDidPlayToEndTimeObserver = playerItemDidPlayToEndTimeObserver {
+            NotificationCenter.default.removeObserver(playerItemDidPlayToEndTimeObserver)
+        }
     }
 
     override func viewDidLoad() {
@@ -124,6 +148,12 @@ final class ViewController: UIViewController {
         setConstraints()
 
         request()
+
+        playerItemDidPlayToEndTimeObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: nil, queue: .main) { [weak self] _ in
+            guard let self = self, !self.isPurchased, self.purchaseView.isHidden else { return }
+
+            self.purchaseView.isHidden = false
+        }
     }
 
     private func setViews() {
@@ -132,6 +162,7 @@ final class ViewController: UIViewController {
         overlayContainer.addSubview(controlButton)
         overlayContainer.addSubview(seekBarView)
         overlayContainer.addSubview(timeLabelStack)
+        playerView.addSubview(purchaseView)
     }
 
     private func setConstraints() {
@@ -167,6 +198,13 @@ final class ViewController: UIViewController {
         NSLayoutConstraint.activate([
             timeLabelStack.leadingAnchor.constraint(equalTo: seekBarView.leadingAnchor),
             timeLabelStack.bottomAnchor.constraint(equalTo: seekBarView.topAnchor, constant: -4),
+        ])
+
+        NSLayoutConstraint.activate([
+            purchaseView.leadingAnchor.constraint(equalTo: playerView.leadingAnchor),
+            purchaseView.trailingAnchor.constraint(equalTo: playerView.trailingAnchor),
+            purchaseView.topAnchor.constraint(equalTo: playerView.topAnchor),
+            purchaseView.bottomAnchor.constraint(equalTo: playerView.bottomAnchor),
         ])
     }
 
@@ -272,9 +310,7 @@ final class ViewController: UIViewController {
         }
     }
 
-    private func play() {
-        guard let url = URL(string: VideoLoader.Router.base + sampleURL) else { return }
-
+    private func play(url: URL) {
         let playItem = AVPlayerItem(url: url)
         player = AVPlayer(playerItem: playItem)
 
@@ -331,6 +367,15 @@ final class ViewController: UIViewController {
 
     private func resume() {
         player?.play()
+    }
+}
+
+extension ViewController: PurchaseDelegate {
+    func didPurchased() {
+        guard let url = url, let url = URL(string: VideoLoader.Router.base + url) else { return }
+
+        play(url: url)
+        isPurchased = true
     }
 }
 
@@ -477,6 +522,62 @@ extension ViewController {
             ])
         }
     }
+
+    final class PurchaseView: UIView {
+        private lazy var titleLabel: UILabel = {
+            let view = UILabel()
+            view.translatesAutoresizingMaskIntoConstraints = false
+            view.text = "Press button to unlock contents."
+            view.font = .systemFont(ofSize: 24)
+            view.textColor = .lightText
+            return view
+        }()
+
+        private lazy var purchaseButton: UIButton = {
+            let view = UIButton(type: .custom, primaryAction: UIAction(handler: { [weak self] _ in
+                self?.delegate?.didPurchased()
+            }))
+
+            var configuration: UIButton.Configuration = .filled()
+            configuration.title = "Unlock"
+            configuration.baseForegroundColor = .lightText
+            configuration.buttonSize = .large
+
+            view.configuration = configuration
+            view.translatesAutoresizingMaskIntoConstraints = false
+            return view
+        }()
+
+        var delegate: PurchaseDelegate?
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            setViews()
+        }
+
+        required init?(coder: NSCoder) {
+            super.init(coder: coder)
+            setViews()
+        }
+
+        private func setViews() {
+            backgroundColor = .black.withAlphaComponent(0.75)
+
+            addSubview(titleLabel)
+            addSubview(purchaseButton)
+
+            NSLayoutConstraint.activate([
+                titleLabel.topAnchor.constraint(equalTo: topAnchor, constant: 30),
+                titleLabel.centerXAnchor.constraint(equalTo: centerXAnchor),
+                titleLabel.widthAnchor.constraint(lessThanOrEqualTo: widthAnchor),
+            ])
+
+            NSLayoutConstraint.activate([
+                purchaseButton.centerXAnchor.constraint(equalTo: centerXAnchor),
+                purchaseButton.centerYAnchor.constraint(equalTo: centerYAnchor),
+            ])
+        }
+    }
 }
 
 struct VideoLoader {
@@ -529,4 +630,22 @@ struct VideoResponse: Codable {
 
 enum VideoError: Error {
     case invalidURL
+}
+
+extension AVPlayer.TimeControlStatus {
+    var description: String {
+        switch self {
+        case .playing:
+            return "playing"
+
+        case .waitingToPlayAtSpecifiedRate:
+            return "waitingToPlayAtSpecifiedRate"
+
+        case .paused:
+            return "paused"
+
+        @unknown default:
+            return "unknown default"
+        }
+    }
 }
