@@ -156,6 +156,14 @@ final class ViewController: UIViewController {
         }
     }
 
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+
+        coordinator.animate { _ in
+            self.seekBarView.layoutIfNeeded()
+        }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         setViews()
@@ -511,6 +519,14 @@ extension ViewController {
         required init?(coder: NSCoder) {
             super.init(coder: coder)
             setViews()
+        }
+
+        override func layoutIfNeeded() {
+            super.layoutIfNeeded()
+
+            if let constant = thumbPositionConstraints?.constant, constant != _progress * barView.bounds.width {
+                thumbPositionConstraints?.constant = _progress * barView.bounds.width
+            }
         }
 
         private func setViews() {
