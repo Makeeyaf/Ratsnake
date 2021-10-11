@@ -374,7 +374,13 @@ extension ViewController: PurchaseDelegate {
     func didPurchased() {
         guard let url = url, let url = URL(string: VideoLoader.Router.base + url) else { return }
 
+        let currentTime: CMTime? = player?.currentTime()
+
         play(url: url)
+
+        if let currentTime = currentTime {
+            player?.seek(to: currentTime)
+        }
         isPurchased = true
     }
 }
