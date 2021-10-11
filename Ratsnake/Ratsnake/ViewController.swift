@@ -89,6 +89,12 @@ final class ViewController: UIViewController {
         return view
     }()
 
+    lazy var overlayContainer: UIView = {
+        let view = UIView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
+
     private var isSeekBarEditing: Bool = false
 
     private var player: AVPlayer?
@@ -117,9 +123,10 @@ final class ViewController: UIViewController {
 
     private func setViews() {
         view.addSubview(playerView)
-        playerView.addSubview(controlButton)
-        playerView.addSubview(seekBarView)
-        playerView.addSubview(timeLabelStack)
+        playerView.addSubview(overlayContainer)
+        overlayContainer.addSubview(controlButton)
+        overlayContainer.addSubview(seekBarView)
+        overlayContainer.addSubview(timeLabelStack)
     }
 
     private func setConstraints() {
@@ -133,16 +140,23 @@ final class ViewController: UIViewController {
         ])
 
         NSLayoutConstraint.activate([
-            controlButton.centerXAnchor.constraint(equalTo: playerView.centerXAnchor),
-            controlButton.centerYAnchor.constraint(equalTo: playerView.centerYAnchor),
+            overlayContainer.leadingAnchor.constraint(equalTo: playerView.leadingAnchor),
+            overlayContainer.trailingAnchor.constraint(equalTo: playerView.trailingAnchor),
+            overlayContainer.topAnchor.constraint(equalTo: playerView.topAnchor),
+            overlayContainer.bottomAnchor.constraint(equalTo: playerView.bottomAnchor),
+        ])
+
+        NSLayoutConstraint.activate([
+            controlButton.centerXAnchor.constraint(equalTo: overlayContainer.centerXAnchor),
+            controlButton.centerYAnchor.constraint(equalTo: overlayContainer.centerYAnchor),
             controlButton.widthAnchor.constraint(equalToConstant: 45),
             controlButton.heightAnchor.constraint(equalTo: controlButton.widthAnchor),
         ])
 
         NSLayoutConstraint.activate([
-            seekBarView.leadingAnchor.constraint(equalTo: playerView.leadingAnchor, constant: 15),
-            seekBarView.trailingAnchor.constraint(equalTo: playerView.trailingAnchor, constant: -15),
-            seekBarView.bottomAnchor.constraint(equalTo: playerView.bottomAnchor, constant: -15),
+            seekBarView.leadingAnchor.constraint(equalTo: overlayContainer.leadingAnchor, constant: 15),
+            seekBarView.trailingAnchor.constraint(equalTo: overlayContainer.trailingAnchor, constant: -15),
+            seekBarView.bottomAnchor.constraint(equalTo: overlayContainer.bottomAnchor, constant: -15),
         ])
 
         NSLayoutConstraint.activate([
